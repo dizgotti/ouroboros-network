@@ -92,6 +92,7 @@ belowTarget actions
     -- If we could connect except that there are no peers currently available
     -- then we return the next wakeup time (if any)
   | numEstablishedPeers + numConnectInProgress < targetNumberOfEstablishedPeers
+  , Set.null (availableToConnect Set.\\ inProgressOrEstablishedPeers)
   = GuardedSkip (Min <$> KnownPeers.minConnectTime knownPeers)
 
   | otherwise
@@ -101,6 +102,10 @@ belowTarget actions
     numEstablishedPeers  = EstablishedPeers.size establishedPeers
     numConnectInProgress = Set.size inProgressPromoteCold
     availableToConnect   = KnownPeers.availableToConnect knownPeers
+    inProgressOrEstablishedPeers
+                         = inProgressPromoteCold
+                           `Set.union`
+                           Map.keysSet (EstablishedPeers.toMap establishedPeers)
 
 
 baseColdPeerRetryDiffTime :: Int
