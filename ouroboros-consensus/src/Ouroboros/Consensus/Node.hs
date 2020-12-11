@@ -295,6 +295,7 @@ runWith RunNodeArgs{..} LowLevelRunNodeArgs{..} =
                                     (miniProtocolParameters nodeKernelArgs)
                                     ntnApps
                                     ntcApps
+                                    nodeKernel
 
       llrnRunDataDiffusion registry diffusionApplications
   where
@@ -342,11 +343,12 @@ runWith RunNodeArgs{..} LowLevelRunNodeArgs{..} =
           -> NodeToClientVersion
           -> NTC.Apps m (ConnectionId addrNTC) ByteString ByteString ByteString ()
          )
+      -> NodeKernel m (ConnectionId addrNTN) (ConnectionId addrNTC) blk
       -> DiffusionApplications
            addrNTN addrNTC
            versionDataNTN versionDataNTC
            m
-    mkDiffusionApplications miniProtocolParams ntnApps ntcApps =
+    mkDiffusionApplications miniProtocolParams ntnApps ntcApps kernel =
       DiffusionApplications {
           daApplicationInitiatorMode = combineVersions
              [ simpleSingletonVersions
@@ -372,6 +374,7 @@ runWith RunNodeArgs{..} LowLevelRunNodeArgs{..} =
         , daMiniProtocolParameters = miniProtocolParams
         , daRethrowPolicy = consensusRethrowPolicy (Proxy @blk)
         , daLocalRethrowPolicy = mempty
+        , daLedgerPeersCtx = LedgerPeersConsensusInterface (getPeersFromCurrentLedgerAfterSlot kernel)
         }
 
 -- | Did the ChainDB already have existing clean-shutdown marker on disk?
