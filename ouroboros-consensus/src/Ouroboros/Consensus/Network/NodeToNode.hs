@@ -113,8 +113,8 @@ data Handlers m peer blk = Handlers {
         -- closure include these and not need to be explicit about them here.
 
     , hChainSyncServer
-        :: ChainDB.Follower m blk (ChainDB.WithPoint blk (SerialisedHeader blk))
-        -> NodeToNodeVersion
+        :: NodeToNodeVersion
+        -> ChainDB.Follower m blk (ChainDB.WithPoint blk (SerialisedHeader blk))
         -> ChainSyncServer (SerialisedHeader blk) (Point blk) (Tip blk) m ()
 
     -- TODO block fetch client does not have GADT view of the handlers.
@@ -177,31 +177,28 @@ mkHandlers
             (Node.chainSyncClientTracer tracers)
             getTopLevelConfig
             (defaultChainDbView getChainDB)
-      , hChainSyncServer =
+      , hChainSyncServer = \_version ->
           chainSyncHeadersServer
             (Node.chainSyncServerHeaderTracer tracers)
             getChainDB
       , hBlockFetchClient =
           blockFetchClient
-      , hBlockFetchServer = \version ->
+      , hBlockFetchServer = \_version ->
           blockFetchServer
             (Node.blockFetchServerTracer tracers)
             getChainDB
-            version
-      , hTxSubmissionClient = \version controlMessageSTM peer ->
+      , hTxSubmissionClient = \_version controlMessageSTM peer ->
           txSubmissionOutbound
             (contramap (TraceLabelPeer peer) (Node.txOutboundTracer tracers))
             (txSubmissionMaxUnacked miniProtocolParameters)
             (getMempoolReader getMempool)
-            version
             controlMessageSTM
-      , hTxSubmissionServer = \version peer ->
+      , hTxSubmissionServer = \_version peer ->
           txSubmissionInbound
             (contramap (TraceLabelPeer peer) (Node.txInboundTracer tracers))
             (txSubmissionMaxUnacked miniProtocolParameters)
             (getMempoolReader getMempool)
             (getMempoolWriter getMempool)
-            version
       , hKeepAliveClient = \_version -> keepAliveClient (Node.keepAliveClientTracer tracers) keepAliveRng
       , hKeepAliveServer = \_version _peer -> keepAliveServer
       }
@@ -499,7 +496,7 @@ mkApps kernel Tracers {..} Codecs {..} genChainSyncTimeout Handlers {..} =
             (timeLimitsChainSync chainSyncTimeout)
             channel
             $ chainSyncServerPeer
-            $ hChainSyncServer flr version
+            $ hChainSyncServer version flr
 
     aBlockFetchClient
       :: NodeToNodeVersion

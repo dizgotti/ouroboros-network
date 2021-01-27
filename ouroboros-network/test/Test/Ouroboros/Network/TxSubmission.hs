@@ -52,7 +52,6 @@ import           Ouroboros.Network.Protocol.TxSubmission.Codec
 import           Ouroboros.Network.TxSubmission.Mempool.Reader
 import           Ouroboros.Network.TxSubmission.Inbound
 import           Ouroboros.Network.TxSubmission.Outbound
-import           Ouroboros.Network.NodeToNode (NodeToNodeVersion (..))
 
 import           Ouroboros.Network.Testing.Utils
 
@@ -143,7 +142,7 @@ getMempoolWriter :: forall txid m.
                     , Eq txid
                     )
                  => Mempool m txid
-                 -> TxSubmissionMempoolWriter txid (Tx txid) Int m 
+                 -> TxSubmissionMempoolWriter txid (Tx txid) Int m
 getMempoolWriter (Mempool mempool) =
     TxSubmissionMempoolWriter {
         txId = getTxId,
@@ -247,7 +246,6 @@ txSubmissionSimulation maxUnacked outboundTxs
         nullTracer
         maxUnacked
         (getMempoolReader outboundMempool)
-        NodeToNodeV_3
         controlMessageSTM
 
     inboundPeer :: Mempool m txid -> TxSubmissionServerPipelined txid (Tx txid) m ()
@@ -257,8 +255,6 @@ txSubmissionSimulation maxUnacked outboundTxs
         maxUnacked
         (getMempoolReader inboundMempool)
         (getMempoolWriter inboundMempool)
-        NodeToNodeV_3
-
 
 newtype LargeNonEmptyList a = LargeNonEmpty { getLargeNonEmpty :: [a] }
   deriving Show

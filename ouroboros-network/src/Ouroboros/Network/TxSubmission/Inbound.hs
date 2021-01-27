@@ -181,9 +181,8 @@ txSubmissionInbound
   -> Word16         -- ^ Maximum number of unacknowledged txids allowed
   -> TxSubmissionMempoolReader txid tx idx m
   -> TxSubmissionMempoolWriter txid tx idx m
-  -> NodeToNodeVersion
   -> TxSubmissionServerPipelined txid tx m ()
-txSubmissionInbound tracer maxUnacked mpReader mpWriter _version =
+txSubmissionInbound tracer maxUnacked mpReader mpWriter =
     TxSubmissionServerPipelined $
       continueWithStateM (serverIdle Zero) initialServerState
   where
