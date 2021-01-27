@@ -83,12 +83,12 @@ miniProtocolStateMap = fmap miniProtocolStatusVar . muxMiniProtocols
 
 -- | Await until mux stopped.
 --
-muxStopped :: MonadSTM m => Mux mode m -> STM m ()
+muxStopped :: MonadSTM m => Mux mode m -> STM m (Maybe SomeException)
 muxStopped Mux { muxStatus } =
     readTVar muxStatus >>= \status -> case status of
-      MuxReady     -> retry
-      MuxFailed {} -> return ()       
-      MuxStopped   -> return ()
+      MuxReady      -> retry
+      MuxFailed err -> return (Just err)
+      MuxStopped    -> return Nothing
 
 
 data MuxStatus = MuxReady | MuxFailed SomeException | MuxStopped
