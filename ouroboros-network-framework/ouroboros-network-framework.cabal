@@ -31,6 +31,7 @@ library
                        Ouroboros.Network.Mux
                        Ouroboros.Network.MuxMode
                        Ouroboros.Network.Util.ShowProxy
+                       Ouroboros.Network.Util.TaggedObserve
 
                        Ouroboros.Network.Protocol.Handshake
                        Ouroboros.Network.Protocol.Handshake.Type
