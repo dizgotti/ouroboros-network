@@ -179,7 +179,7 @@ pipelineDecisionLowHighMark lowMark highMark =
     goZero :: Nat Z -> WithOrigin BlockNo -> WithOrigin BlockNo
            -> (PipelineDecision Z, MkPipelineDecision)
     goZero Zero clientTipBlockNo serverTipBlockNo
-      | clientTipBlockNo `bnoPlus` 1 == serverTipBlockNo
+      | clientTipBlockNo == serverTipBlockNo
       = (Request, goLow)
 
       | otherwise
