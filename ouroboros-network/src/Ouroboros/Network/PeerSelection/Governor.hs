@@ -40,7 +40,7 @@ import qualified Control.Concurrent.JobPool as JobPool
 import           Control.Concurrent.JobPool (JobPool)
 import           Control.Monad.Class.MonadAsync
 import           Control.Monad.Class.MonadThrow
-import           Control.Monad.Class.MonadSTM
+import           Control.Monad.Class.MonadSTM.Strict
 import           Control.Monad.Class.MonadTime
 import           Control.Monad.Class.MonadTimer
 import           Control.Tracer (Tracer(..), traceWith)
@@ -560,8 +560,48 @@ $peer-churn-governor
 
 -- |
 --
-peerChurnGovernor :: MonadSTM m
-                  => PeerSelectionTargets
-                  -> m () --Void
-peerChurnGovernor _ =
-    return ()
+peerChurnGovernor :: forall m.
+                     ( MonadSTM m
+                     -- , MonadMonotonicTime m
+                     , MonadDelay m
+                     )
+                  => StrictTVar m PeerSelectionTargets
+                  -> m Void
+peerChurnGovernor peerSelectionVar = do
+  base <- atomically $ readTVar peerSelectionVar
+  go base
+  where
+    go :: PeerSelectionTargets -> m Void
+    go base = do
+
+      -- Slowly inrease the targets for different kinds of peers.
+      -- Then set go back to the original value, forcing the governor to
+      -- prioritize between the new and old peers.
+
+      atomically $ modifyTVar peerSelectionVar (\targets -> targets {
+          targetNumberOfRootPeers = increase (targetNumberOfRootPeers base)
+          })
+      threadDelay 20
+
+      atomically $ modifyTVar peerSelectionVar (\targets -> targets {
+          targetNumberOfKnownPeers = increase (targetNumberOfKnownPeers base)
+          })
+      threadDelay 20
+
+      atomically $ modifyTVar peerSelectionVar (\targets -> targets {
+          targetNumberOfEstablishedPeers = increase (targetNumberOfEstablishedPeers base)
+          })
+      threadDelay 20
+
+      atomically $ modifyTVar peerSelectionVar (\targets -> targets {
+          targetNumberOfActivePeers = increase (targetNumberOfActivePeers base)
+          })
+      threadDelay 60
+
+      atomically $ writeTVar peerSelectionVar base
+      threadDelay 600
+      go base
+
+    increase :: Int -> Int
+    increase v = v + max 1 (v `div` 20)
+
