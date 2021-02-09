@@ -10,6 +10,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -109,8 +110,8 @@ instance ShelleyBasedEra era
     where
       txSize = fromIntegral . Lazy.length . SL.txFullBytes $ tx
 
-mkShelleyTx :: ShelleyBasedEra era => SL.Tx era -> GenTx (ShelleyBlock era)
-mkShelleyTx tx = ShelleyTx (SL.txid (SL._body tx)) tx
+mkShelleyTx :: forall era. ShelleyBasedEra era => SL.Tx era -> GenTx (ShelleyBlock era)
+mkShelleyTx tx = ShelleyTx (SL.txid @era (SL._body tx)) tx
 
 newtype instance TxId (GenTx (ShelleyBlock era)) = ShelleyTxId (SL.TxId (EraCrypto era))
   deriving newtype (Eq, Ord, NoThunks)
