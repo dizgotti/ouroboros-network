@@ -45,6 +45,7 @@ import           Control.Monad.Class.MonadTime
 import           Control.Monad.Class.MonadTimer
 import           Control.Tracer (Tracer(..), traceWith)
 
+import           Ouroboros.Network.Diffusion.Policies (closeConnectionTimeout)
 import qualified Ouroboros.Network.PeerSelection.EstablishedPeers as EstablishedPeers
 import qualified Ouroboros.Network.PeerSelection.KnownPeers as KnownPeers
 import qualified Ouroboros.Network.PeerSelection.Governor.ActivePeers      as ActivePeers
@@ -573,35 +574,45 @@ peerChurnGovernor peerSelectionVar = do
   where
     go :: PeerSelectionTargets -> m Void
     go base = do
+      threadDelay 600 -- XXX Should be around 1h
 
-      -- Slowly inrease the targets for different kinds of peers.
-      -- Then set go back to the original value, forcing the governor to
-      -- prioritize between the new and old peers.
-
+      -- Purge the worst active peer(s).
       atomically $ modifyTVar peerSelectionVar (\targets -> targets {
-          targetNumberOfRootPeers = increase (targetNumberOfRootPeers base)
+          targetNumberOfActivePeers = decrease (targetNumberOfActivePeers base)
           })
-      threadDelay 20
 
+      -- Short delay, we may have no active peers right now
+      threadDelay 1
+
+      -- Pick new active peer(s) based on the best performing established
+      -- peers.
       atomically $ modifyTVar peerSelectionVar (\targets -> targets {
-          targetNumberOfKnownPeers = increase (targetNumberOfKnownPeers base)
+          targetNumberOfActivePeers = targetNumberOfActivePeers base
           })
-      threadDelay 20
 
+      -- Give the promotion process time to start
+      threadDelay 1
+
+      -- Forget the worst performing non-active peers.
       atomically $ modifyTVar peerSelectionVar (\targets -> targets {
-          targetNumberOfEstablishedPeers = increase (targetNumberOfEstablishedPeers base)
-          })
-      threadDelay 20
+          targetNumberOfRootPeers = decrease (targetNumberOfRootPeers base)
+        , targetNumberOfKnownPeers = decrease (targetNumberOfKnownPeers base)
+        , targetNumberOfEstablishedPeers =
+              decrease (targetNumberOfEstablishedPeers base)
+        })
 
+      -- Give the governor time to properly demote them.
+      threadDelay $ 1 + closeConnectionTimeout
+
+      -- Pick new non-active peers
       atomically $ modifyTVar peerSelectionVar (\targets -> targets {
-          targetNumberOfActivePeers = increase (targetNumberOfActivePeers base)
-          })
-      threadDelay 60
+          targetNumberOfRootPeers = targetNumberOfRootPeers base
+        , targetNumberOfKnownPeers = targetNumberOfKnownPeers base
+        , targetNumberOfEstablishedPeers = targetNumberOfEstablishedPeers base
+        })
 
-      atomically $ writeTVar peerSelectionVar base
-      threadDelay 600
       go base
 
-    increase :: Int -> Int
-    increase v = v + max 1 (v `div` 20)
+    decrease :: Int -> Int
+    decrease v = v  - max 1 (v `div` 8)
 
