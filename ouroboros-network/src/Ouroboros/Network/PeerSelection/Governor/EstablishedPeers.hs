@@ -132,23 +132,28 @@ jobPromoteColdPeer PeerSelectionActions{peerStateActions = PeerStateActions {est
                                 }
                     }
                     now ->
-        let (failCount, knownPeers') = KnownPeers.incrementFailCount
+        let (backoffs, knownPeers') = KnownPeers.decrementBackoffs
                                          peeraddr
                                          (knownPeers st)
 
             -- exponential backoff: 5s, 10s, 20s, 40s, 80s, 160s.
-            delay :: DiffTime
-            delay = fromIntegral $
-              2 ^ (pred failCount `min` maxColdPeerRetryBackoff) * baseColdPeerRetryDiffTime
+            -- If we have 100 cold peers and 30% is offline, then we will try
+            -- to reconnect to one of them every: 160/30=5.33s (assuming that
+            -- the policy keeps asking for the 30% offline peers and assuming
+            -- that the governor is constantly looking for more warm peers).
+            backoffDelay :: DiffTime
+            backoffDelay = fromIntegral $
+                2 ^ (abs backoffs `min` maxColdPeerRetryBackoff)
+              * baseColdPeerRetryDiffTime
         in
           Decision {
             decisionTrace = TracePromoteColdFailed targetNumberOfEstablishedPeers
                                                    (EstablishedPeers.size establishedPeers)
-                                                   peeraddr delay e,
+                                                   peeraddr backoffDelay e,
             decisionState = st {
                               knownPeers            = KnownPeers.setConnectTime
                                                         (Set.singleton peeraddr)
-                                                        (delay `addTime` now)
+                                                        (backoffDelay `addTime` now)
                                                         knownPeers',
                               inProgressPromoteCold = Set.delete peeraddr
                                                         (inProgressPromoteCold st)
@@ -178,7 +183,7 @@ jobPromoteColdPeer PeerSelectionActions{peerStateActions = PeerStateActions {est
                                establishedPeers      = establishedPeers',
                                inProgressPromoteCold = Set.delete peeraddr
                                                          (inProgressPromoteCold st),
-                               knownPeers            = KnownPeers.resetFailCount
+                               knownPeers            = KnownPeers.incrementBackoffs
                                                          peeraddr
                                                          (knownPeers st)
                              },

@@ -18,8 +18,8 @@ module Ouroboros.Network.PeerSelection.KnownPeers (
 
     -- * Special operations
     setCurrentTime,
-    incrementFailCount,
-    resetFailCount,
+    incrementBackoffs,
+    decrementBackoffs,
 
     -- ** Tracking when we can gossip
     minGossipTime,
@@ -59,13 +59,13 @@ data KnownPeerInfo = KnownPeerInfo {
 
        knownPeerSource    :: !PeerSource,
 
-       -- | The current number of consecutive connection attempt failures. This
-       -- is reset as soon as there is a successful connection.
+       -- | The current number of consecutive connection attempt successes
+       -- (positive) or failures (negative).
        --
        -- It is used to implement the exponential backoff strategy and may also
        -- be used by policies to select peers to forget.
        --
-       knownPeerFailCount :: !Int
+       knownPeerBackoffs  :: !Int
      }
   deriving (Eq, Show)
 
@@ -193,7 +193,7 @@ insert peersource peeradvertise peeraddrs
       KnownPeerInfo {
         knownPeerSource    = peersource,
         knownPeerAdvertise = peeradvertise peeraddr,
-        knownPeerFailCount = 0
+        knownPeerBackoffs  = 0
       }
     mergePeerInfo old new =
       KnownPeerInfo {
@@ -201,7 +201,7 @@ insert peersource peeradvertise peeraddrs
         knownPeerAdvertise = case knownPeerSource new of
                                PeerSourceLocalRoot -> knownPeerAdvertise new
                                _                   -> knownPeerAdvertise old,
-        knownPeerFailCount = knownPeerFailCount old
+        knownPeerBackoffs  = knownPeerBackoffs old
       }
 
 delete :: Ord peeraddr
@@ -281,31 +281,35 @@ setCurrentTime now knownPeers@KnownPeers {
       <> Set.fromList [ peeraddr | (peeraddr, _, _) <- nowAvailableToConnect ]
 
 
-incrementFailCount :: Ord peeraddr
-                   => peeraddr
-                   -> KnownPeers peeraddr
-                   -> (Int, KnownPeers peeraddr)
-incrementFailCount peeraddr knownPeers@KnownPeers{allPeers} =
+modifyBackoffs :: Ord peeraddr
+               => (Int -> Int)
+               -> peeraddr
+               -> KnownPeers peeraddr
+               -> (Int, KnownPeers peeraddr)
+modifyBackoffs f peeraddr knownPeers@KnownPeers{allPeers} =
     assert (peeraddr `Map.member` allPeers) $
-    let allPeers' = Map.update (Just . incr) peeraddr allPeers
+    let allPeers' = Map.update (Just . f') peeraddr allPeers
     in ( -- since the `peeraddr` is assumed to be part of `allPeers` the `Map.!`
          -- is safe
-         knownPeerFailCount (allPeers' Map.! peeraddr)
+         knownPeerBackoffs (allPeers' Map.! peeraddr)
        , knownPeers { allPeers = allPeers' }
        )
   where
-    incr kpi = kpi { knownPeerFailCount = knownPeerFailCount kpi + 1 }
+    f' kpi = kpi { knownPeerBackoffs = f (knownPeerBackoffs kpi) }
 
 
-resetFailCount :: Ord peeraddr
-               => peeraddr
-               -> KnownPeers peeraddr
-               -> KnownPeers peeraddr
-resetFailCount peeraddr knownPeers@KnownPeers{allPeers} =
-    assert (peeraddr `Map.member` allPeers) $
-    knownPeers { allPeers = Map.update (\kpi  -> Just kpi { knownPeerFailCount = 0 })
-                              peeraddr allPeers
-               }
+decrementBackoffs :: Ord peeraddr
+                  => peeraddr
+                  -> KnownPeers peeraddr
+                  -> (Int, KnownPeers peeraddr)
+decrementBackoffs = modifyBackoffs (\i -> i `min` 0 - 1)
+
+
+incrementBackoffs :: Ord peeraddr
+                  => peeraddr
+                  -> KnownPeers peeraddr
+                  -> KnownPeers peeraddr
+incrementBackoffs = fmap snd . modifyBackoffs (\i -> i `max` 0 + 1)
 
 
 -------------------------------
