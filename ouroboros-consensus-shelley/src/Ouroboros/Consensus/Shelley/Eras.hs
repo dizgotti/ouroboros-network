@@ -23,6 +23,8 @@ module Ouroboros.Consensus.Shelley.Eras (
 
 import           Data.Default.Class (Default)
 import           Data.Text (Text)
+import           GHC.Records
+import           Numeric.Natural (Natural)
 
 import           Cardano.Ledger.Allegra (AllegraEra)
 import qualified Cardano.Ledger.Core as LC
@@ -31,8 +33,10 @@ import           Cardano.Ledger.Mary (MaryEra)
 import           Cardano.Ledger.Shelley (ShelleyEra)
 import           Control.State.Transition (State)
 
+import qualified Cardano.Ledger.Shelley.Constraints as SL
 import           Ouroboros.Consensus.Shelley.Protocol.Crypto (StandardCrypto)
 import qualified Shelley.Spec.Ledger.API as SL
+import qualified Shelley.Spec.Ledger.BaseTypes as SL
 
 {-------------------------------------------------------------------------------
   Eras instantiated with standard crypto
@@ -82,6 +86,13 @@ type EraCrypto era = Crypto era
 class ( SL.ShelleyBasedEra era
       , State (LC.EraRule "PPUP" era) ~ SL.PPUPState era
       , Default (State (LC.EraRule "PPUP" era))
+      , HasField "_maxBHSize" (LC.PParams era) Natural
+      , HasField "_maxTxSize" (LC.PParams era) Natural
+      , HasField "_a0" (LC.PParams era) Rational
+      , HasField "_nOpt" (LC.PParams era) Natural
+      , HasField "_rho" (LC.PParams era) SL.UnitInterval
+      , HasField "_tau" (LC.PParams era) SL.UnitInterval
+      , HasField "_protocolVersion" (SL.PParamsDelta era) (SL.StrictMaybe SL.ProtVer)
       ) => ShelleyBasedEra era where
   -- | Return the name of the Shelley-based era, e.g., @"Shelley"@, @"Allegra"@,
   -- etc.
